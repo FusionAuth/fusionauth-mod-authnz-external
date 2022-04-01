@@ -1,3 +1,5 @@
+AuthnCacheSOCache shmcb
+
 <VirtualHost *:443>
   ServerAdmin dev@fusionauth.io
   ServerName example.fusionauth.io
@@ -17,11 +19,13 @@
     AuthType Basic
     AuthName "Authenticated Users Only"
     AuthBasicProvider socache external
+    AuthExternal fusionauth
     AuthExternalProvideCache On
+    # This sets the cache key by the virtual hostname instead of the directory.
+    AuthnCacheContext server
     AuthnCacheProvideFor external
     # Cache timeout in seconds. Lower is better for security, higher is better for performance.
     AuthnCacheTimeout 30
-    AuthExternal fusionauth
     require valid-user
   </Directory>
 
