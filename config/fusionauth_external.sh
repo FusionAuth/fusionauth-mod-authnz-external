@@ -54,8 +54,8 @@ TOKEN=$(/usr/bin/curl -s -X POST \
        -H 'Content-Type: application/json' \
        -H "Authorization: ${API_KEY}" -d \
        "{\"applicationId\": \"$APPLICATION_ID\", \"loginId\": \"$USER\", \"password\": \"$PASSWORD\", \"ipAddress\": \"$IP_ADDR\"}" \
-       ${URL}/api/login \
-       | jq -j '.token')
+       ${URL}/api/login | \
+       jq -j '.token')
 
 STATUS=`echo $?`
 if [ ${STATUS} -ne 0 ]; then
@@ -63,22 +63,21 @@ if [ ${STATUS} -ne 0 ]; then
 fi
 
 # Call the Userinfo endpoint to verify the Access Token and retrieve user claims
-RESULT=$(/usr/bin/curl -s -X GET -H "Authorization: Bearer ${TOKEN}" ${URL}/oauth2/userinfo)
+USERINFO=$(/usr/bin/curl -s -X GET -H "Authorization: Bearer ${TOKEN}" ${URL}/oauth2/userinfo)
 STATUS=`echo $?`
 if [ ${STATUS} -ne 0 ]; then
   exit ${STATUS}
 fi
 
-APP_ID=$(echo ${RESULT} | jq -j '.applicationId')
+APP_ID=$(echo ${USERINFO} | jq -j '.applicationId')
 if [ "${APP_ID}" != "${APPLICATION_ID}" ]; then
   exit 1
 fi
 
 # If a role was requested, verify the value exists in the roles claim.
 if [ -n "$ROLE" ]; then
-  HAS_ROLE=$(echo ${RESULT} | jq ".roles|any(. == \"${ROLE}\")")
+  HAS_ROLE=$(echo ${USERINFO} | jq ".roles|any(. == \"${ROLE}\")")
   if [ ${HAS_ROLE} == "false" ]; then
     exit 1
   fi
 fi
-
