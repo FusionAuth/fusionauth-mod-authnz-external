@@ -48,29 +48,37 @@ read -n1024 PASSWORD
 IP_ADDR=`ifconfig ${INTERFACE} | grep 'inet addr:' | cut -d: -f2 | awk '{ print $1}'`
 
 # Authenticate and verify role
-if [ -n "$ROLE" ]; then
+# Call the Login API and parse the token (access token) in the response.
+TOKEN=$(/usr/bin/curl -s -X POST \
+       -H 'Accept: application/json' \
+       -H 'Content-Type: application/json' \
+       -H "Authorization: ${API_KEY}" -d \
+       "{\"applicationId\": \"$APPLICATION_ID\", \"loginId\": \"$USER\", \"password\": \"$PASSWORD\", \"ipAddress\": \"$IP_ADDR\"}" \
+       ${URL}/api/login \
+       | jq -j '.token')
 
-  RESULT=$(/usr/bin/curl -s -X POST -H 'Accept: application/json' -H 'Content-Type: application/json' -d \
-         "{\"applicationId\": \"$APPLICATION_ID\", \"loginId\": \"$USER\", \"password\": \"$PASSWORD\", \"ipAddress\": \"$IP_ADDR\"}" ${URL}/api/login | jq \
-         "contains({user: {registrations: [{applicationId: \"${APPLICATION_ID}\", roles:[\"${ROLE}\"] }] } })")
-
-  STATUS=`echo $?`
-  if [ ${STATUS} -eq 0 ]; then
-    if [ "${RESULT}" == "true" ]; then
-        exit 0
-    fi
-  fi
-
-  exit 1
-
-else
-
-  # Authenticate and only verify registration
-  STATUS=$(/usr/bin/curl -sw '%{http_code}' -X POST -H 'Accept: application/json' -H 'Content-Type: application/json' -d "{\"applicationId\": \"$APPLICATION_ID\", \"loginId\": \"$USER\", \"password\": \"$PASSWORD\", \"ipAddress\": \"$IP_ADDR\"}" -o /dev/null ${URL}/api/login)
-  if [ "$STATUS" -ne 200 ]; then
-      exit ${STATUS}
-  fi
-
-  exit 0
-
+STATUS=`echo $?`
+if [ ${STATUS} -ne 0 ]; then
+  exit ${STATUS}
 fi
+
+# Call the Userinfo endpoint to verify the Access Token and retrieve user claims
+RESULT=$(/usr/bin/curl -s -X GET -H "Authorization: Bearer ${TOKEN}" ${URL}/oauth2/userinfo)
+STATUS=`echo $?`
+if [ ${STATUS} -ne 0 ]; then
+  exit ${STATUS}
+fi
+
+APP_ID=$(echo ${RESULT} | jq -j '.applicationId')
+if [ "${APP_ID}" != "${APPLICATION_ID}" ]; then
+  exit 1
+fi
+
+# If a role was requested, verify the value exists in the roles claim.
+if [ -n "$ROLE" ]; then
+  HAS_ROLE=$(echo ${RESULT} | jq ".roles|any(. == \"${ROLE}\")")
+  if [ ${HAS_ROLE} == "false" ]; then
+    exit 1
+  fi
+fi
+
