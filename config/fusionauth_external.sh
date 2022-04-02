@@ -24,6 +24,14 @@ else
   exit 1
 fi
 
+value=$(cat ${CONFIG} | grep "^fusionauth.api_key" | awk -F'=' '{print $2}')
+if [ -n "$value" ]; then
+  API_KEY="$value"
+else
+  error "Unable to find the configuration for [fusionauth.api_key]"
+  exit 1
+fi
+
 value=$(cat ${CONFIG} | grep "^fusionauth.network_interface" | awk -F'=' '{print $2}')
 if [ -n "$value" ]; then
   INTERFACE="$value"
@@ -45,7 +53,7 @@ ROLE="$@"
 read -n1024 USER
 read -n1024 PASSWORD
 
-IP_ADDR=`ifconfig ${INTERFACE} | grep 'inet addr:' | cut -d: -f2 | awk '{ print $1}'`
+IP_ADDR=`ifconfig ${INTERFACE} | grep 'inet addr ' | awk '{print $2}'`
 
 # Authenticate and verify role
 # Call the Login API and parse the token (access token) in the response.
